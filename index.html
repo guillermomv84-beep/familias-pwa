@@ -31,7 +31,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
-    /* Overlay de login para proteger contenido a primera vista */
+    /* Overlay de login */
     #login-overlay{
       position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
       background:rgba(2,6,23,0.96);z-index:9999;color:#e2e8f0;font-family:-apple-system,system-ui,Segoe UI,Roboto,Inter,Arial;
@@ -48,17 +48,11 @@
       background:linear-gradient(90deg,#22d3ee,#38bdf8);color:#001b24;font-weight:700}
     #login-error{margin-top:.6em;color:#fca5a5;min-height:1.1em;font-size:13px}
     body.protected #protected-content{visibility:hidden}
-  </style>
-
-
-  <style>
-    /* --- Mejoras móviles (iPhone) --- */
+    /* Mejoras móviles */
     .controls{gap:.6rem}
-    .controls input, .controls select, .controls button{
-      height:44px; /* tamaño táctil cómodo */
-    }
+    .controls input, .controls select, .controls button{height:44px}
     .table-wrap{width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch;}
-    #tabla{min-width:880px;} /* evita romper columnas; se puede desplazar lateralmente si hace falta */
+    #tabla{min-width:880px;}
     @media (max-width: 640px){
       .container{padding:12px}
       header{padding:16px 12px}
@@ -67,13 +61,13 @@
         flex:1 1 100%;
       }
       .controls{display:grid; grid-template-columns:1fr; align-items:stretch}
-      .controls .right-actions{display:flex; gap:.5rem}
+      .controls .right-actions{display:flex; gap:.5rem; flex-wrap:wrap}
     }
     .muted{color:#94a3b8; font-size:13px}
   </style>
 
 </head>
-<body><div id='protected-content'>
+<body data-version=\"v2\"><div id='protected-content'>
   <header>
     <h1>Buscador de Familias (1 archivo)</h1>
   </header>
@@ -159,21 +153,19 @@
 </div>
 
   <script>
-  // Registro del Service Worker (PWA offline)
+  // Registro del Service Worker
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('./sw.js').catch(console.error);
     });
   }
 
-  // Pequeña utilidad SHA-256 con Web Crypto
   async function sha256Hex(str) {
     const enc = new TextEncoder();
     const buf = await crypto.subtle.digest('SHA-256', enc.encode(str));
     return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
   }
-
-  const STORED_HASH = '05af1c6e5a497fd81df3041ad6ad8ab25195d22b9ad03126c53f84db83c6fd2d'; // SHA-256 de la clave
+  const STORED_HASH = '05af1c6e5a497fd81df3041ad6ad8ab25195d22b9ad03126c53f84db83c6fd2d';
 
   async function tryUnlock() {
     const input = document.getElementById('pass-input');
@@ -184,17 +176,14 @@
       localStorage.setItem('familias_unlocked','1');
       document.getElementById('login-overlay').style.display='none';
       document.body.classList.remove('protected');
-      // En iOS PWA, forzar relayout
       document.getElementById('protected-content')?.style.setProperty('visibility','visible');
       return true;
     } else {
       err.textContent = 'Contraseña incorrecta.';
-      input.focus();
-      input.select();
+      input.focus(); input.select();
       return false;
     }
   }
-
   function setupLogin() {
     const unlocked = localStorage.getItem('familias_unlocked') === '1';
     if (unlocked) {
@@ -210,8 +199,6 @@
     btn?.addEventListener('click', tryUnlock);
     input?.addEventListener('keydown', (e) => { if(e.key==='Enter') tryUnlock(); });
   }
-
-  // Insertar overlay de login al cargar
   (function() {
     const overlay = document.createElement('div');
     overlay.id = 'login-overlay';
@@ -222,26 +209,19 @@
         <input id="pass-input" type="password" placeholder="Contraseña" autocomplete="current-password" inputmode="text">
         <div id="login-error"></div>
         <button id="btn-unlock">Entrar</button>
-        <p style="margin-top:10px;font-size:12px;color:#93a7bf">Consejo: tras desbloquear, la app funciona offline.</p>
+        <p style="margin-top:10px;font-size:12px;color:#93a7bf">Tras desbloquear, la app funciona offline.</p>
       </div>`;
     document.body.appendChild(overlay);
     window.addEventListener('DOMContentLoaded', setupLogin);
   })();
   </script>
 
-
   <script>
-    // Utilidades
+    // Búsqueda dinámica (tabla vacía al inicio)
     const $ = (sel) => document.querySelector(sel);
-    const $$ = (sel) => Array.from(document.querySelectorAll(sel));
     const normalize = (s) => (s||'').toString().normalize('NFD').replace(/\p{Diacritic}+/gu,'').toLowerCase().trim();
 
-    const DATA = (()=>{
-      const el = document.getElementById('bootstrap-data');
-      if(!el) return [];
-      try { return JSON.parse(el.textContent); } catch(e){ return []; }
-    })();
-
+    const DATA = (()=>{ try { return JSON.parse(document.getElementById('bootstrap-data').textContent); } catch(e) { return []; } })();
     const tbody = document.querySelector('#tabla tbody');
     const searchNombre = $('#searchNombre');
     const searchApellidos = $('#searchApellidos');
@@ -249,30 +229,24 @@
     const filterCurso = $('#filterCurso');
     const hint = $('#hint');
 
-    function recordMatches(rec, qNom, qApe, qTel, fCurso){
-      // Campos relevantes
-      const camposNombre = [
-        rec['Alumno/a'], rec['Padre - Nombre'], rec['Madre - Nombre']
-      ].map(normalize).join(' ');
-      const camposApellidos = [
-        rec['Apellidos alumno/a'], rec['Padre - Apellidos'], rec['Madre - Apellidos']
-      ].map(normalize).join(' ');
-      const tel = [rec['Tel. Padre'], rec['Tel. Madre']].map(normalize).join(' ');
-      const curso = normalize(rec['Curso/Grupo']);
+    function recordMatches(r, qNom, qApe, qTel, fCurso){
+      const camposNombre = [r['Alumno/a'], r['Padre - Nombre'], r['Madre - Nombre']].map(normalize).join(' ');
+      const camposApellidos = [r['Apellidos alumno/a'], r['Padre - Apellidos'], r['Madre - Apellidos']].map(normalize).join(' ');
+      const tel = [r['Tel. Padre'], r['Tel. Madre']].map(normalize).join(' ');
+      const curso = normalize(r['Curso/Grupo']);
       if (qNom && !camposNombre.includes(qNom)) return false;
       if (qApe && !camposApellidos.includes(qApe)) return false;
       if (qTel && !tel.includes(qTel)) return false;
       if (fCurso && curso !== fCurso) return false;
       return true;
     }
-
     function renderRows(rows){
-      if(!tbody) return;
+      if (!tbody) return;
       if (!rows.length){
         tbody.innerHTML = "<tr><td colspan='10' class='muted'>Sin resultados. Ajusta la búsqueda.</td></tr>";
         return;
       }
-      const html = rows.map(r => `
+      tbody.innerHTML = rows.map(r => `
         <tr>
           <td>${r['Alumno/a']||''}</td>
           <td>${r['Apellidos alumno/a']||''}</td>
@@ -284,11 +258,8 @@
           <td>${r['Madre - Apellidos']||''}</td>
           <td>${r['Tel. Madre']||''}</td>
           <td>${r['Observaciones']||''}</td>
-        </tr>
-      `).join('');
-      tbody.innerHTML = html;
+        </tr>`).join('');
     }
-
     function currentFilters(){
       return {
         qNom: normalize(searchNombre?.value),
@@ -297,12 +268,10 @@
         fCurso: normalize(filterCurso?.value)
       };
     }
-
     function applyFilter(){
       const {qNom,qApe,qTel,fCurso} = currentFilters();
       const active = qNom || qApe || qTel || fCurso;
       if (!active){
-        // Nada escrito: no mostramos los datos
         tbody.innerHTML = "<tr><td colspan='10' class='muted'>Empieza a escribir para ver resultados…</td></tr>";
         hint && (hint.textContent = 'Empieza tecleando para buscar. También puedes pulsar "Mostrar todo".');
         return;
@@ -311,33 +280,15 @@
       renderRows(out);
       hint && (hint.textContent = `Mostrando ${out.length} resultado(s).`);
     }
-
-    // Debounce
-    function debounce(fn, ms=160){
-      let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), ms); };
-    }
+    function debounce(fn, ms=160){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
     const debouncedApply = debounce(applyFilter, 160);
+    function clearAll(){ if (searchNombre) searchNombre.value=''; if (searchApellidos) searchApellidos.value=''; if (searchTelefono) searchTelefono.value=''; if (filterCurso) filterCurso.value=''; applyFilter(); }
 
-    function clearAll(){
-      if (searchNombre) searchNombre.value='';
-      if (searchApellidos) searchApellidos.value='';
-      if (searchTelefono) searchTelefono.value='';
-      if (filterCurso) filterCurso.value='';
-      applyFilter();
-    }
-
-    // Inicialización: vaciar tabla de inicio
     document.addEventListener('DOMContentLoaded', () => {
       if (tbody) tbody.innerHTML = "<tr><td colspan='10' class='muted'>Empieza a escribir para ver resultados…</td></tr>";
-      // Eventos
-      [searchNombre, searchApellidos, searchTelefono, filterCurso].forEach(el => {
-        el && el.addEventListener('input', debouncedApply);
-        el && el.addEventListener('change', debouncedApply);
-      });
-      const btnMostrarTodo = document.getElementById('btnMostrarTodo');
-      const btnLimpiar = document.getElementById('btnLimpiar');
-      btnMostrarTodo && btnMostrarTodo.addEventListener('click', ()=> renderRows(DATA));
-      btnLimpiar && btnLimpiar.addEventListener('click', clearAll);
+      [searchNombre, searchApellidos, searchTelefono, filterCurso].forEach(el => { el && el.addEventListener('input', debouncedApply); el && el.addEventListener('change', debouncedApply); });
+      document.getElementById('btnMostrarTodo')?.addEventListener('click', ()=> renderRows(DATA));
+      document.getElementById('btnLimpiar')?.addEventListener('click', clearAll);
     });
   </script>
 
