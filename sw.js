@@ -1,6 +1,5 @@
-
-const CACHE_NAME = 'familias-cache-v5';
-const INDEX_V = './index.html?v=5';
+const CACHE_NAME = 'familias-cache-v6';
+const INDEX_V = './index.html?v=6';
 const ASSETS = [
   './',
   INDEX_V,
@@ -9,23 +8,19 @@ const ASSETS = [
   './icon-192.png',
   './icon-512.png'
 ];
-
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)));
   self.skipWaiting();
 });
-
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
-
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then(keys => Promise.all(keys.map(k => (k!==CACHE_NAME) && caches.delete(k))))
   );
   self.clients.claim();
 });
-
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.mode === 'navigate') {
