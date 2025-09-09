@@ -1,5 +1,5 @@
-const CACHE_NAME = 'familias-cache-v6-1';
-const INDEX_V = './index.html?v=6.1';
+const CACHE_NAME = 'familias-cache-v6-2';
+const INDEX_V = './index.html?v=6.2';
 const ASSETS = [
   './',
   INDEX_V,
@@ -38,4 +38,4 @@ self.addEventListener('fetch', (event) => {
       }).catch(() => cached);
     })
   );
-};
+});
